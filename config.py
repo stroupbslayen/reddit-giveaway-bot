@@ -12,6 +12,7 @@ user_agent="Random Giveaway Bot"
 botname = "BOTNAME"				#name of the bot or other name that you would like people to call on to activate the bot
 sreddit = "SUBREDDIT"		#subreddit to check
 comments_to_search = 100	#comments that will be pulled when the bot runs
+posts_to_search = 100       #posts that will be pulled when the bot runs
 sleep_timer = 60			#time to sleep in seconds
 im_a_bot = "\n\n"           #customize for your needs adds message to the end of comment replies
 help_message = "\n\n"       #add a help message if comment/post format is incorrect
