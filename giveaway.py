@@ -4,19 +4,21 @@ import time
 import config
 import random
 
+#set classes for console return
 class console:
 	notop = "Not the OP\n"
 	wformat = "Wrong format\n"
 	notenough = "not enough people in drawing\n"
 	error = "There was an error\n"
 
-
+#set classes for response to post or comment
 class res:
 	notop = "You are not the OP for the linked post."+config.help_message
 	wformat = "Incorrect format, please make sure you're using the correct input."+ config.help_message
 	notenough = "Not enough people in drawing at this time. Leave another comment later."
 	error = "I ran into a problem getting results for this drawing. Please make sure the format is correct."+config.help_message
 
+#login to reddit
 def bot_login():
 	print("\nPosts Logging in...")
 	r = praw.Reddit(username = config.username,     # username from config.py
@@ -27,6 +29,7 @@ def bot_login():
 	print("Logged in... \n")
 	return r
 
+#scan posts for botname and reply
 def post_scan(r,posts_replied_to):
 	print("Getting "+str(config.posts_to_search)+" posts\n")
 	for submission in r.subreddit(config.sreddit).new(limit=config.posts_to_search):
@@ -64,6 +67,7 @@ def post_scan(r,posts_replied_to):
 				print(console_response)
 				r.submission(id=post_id).reply(response)
 
+#scan comments for botname and reply
 def comment_scan(r,comments_replied_to):
 	print("Getting "+str(config.comments_to_search)+" comments\n")
 	for comment in r.subreddit(config.sreddit).comments(limit=config.comments_to_search):
@@ -102,6 +106,7 @@ def comment_scan(r,comments_replied_to):
 				print(console_response)
 				r.comment(id=comment_id).reply(response)
 
+#get parameters for giveaway from post or comment
 def get_param(values):
 	if len(values)<4:
 		values.append("")
@@ -111,6 +116,7 @@ def get_param(values):
 
 	return post_url,prizes,keyword
 
+#get entries from link posted in post or comment
 def get_entries(post_url,keyword):
 	entries = []
 	post = r.submission(url=post_url)
@@ -121,6 +127,7 @@ def get_entries(post_url,keyword):
 			entries.append(comment.author.name)
 	return entries
 
+#randomly select winners from the entries, number of winners is equal to number of prizes given
 def get_winners(entries,prizes):
 	count_down = prizes
 	winners = []
@@ -130,6 +137,7 @@ def get_winners(entries,prizes):
 			entries.remove(picked)
 	return winners
 
+#setup reply to comment or post
 def reply_comment(total_entered,winners):
 	count_up = 0
 	add_winners = ""
@@ -143,7 +151,7 @@ def reply_comment(total_entered,winners):
 	response =  total_entered+ " redditor(s) entered in this drawing \n\n The winner(s):" + add_winners
 	return response
 
-#logs comments that have already been replied to in a text file it creates/finds
+#logs posts that have already been replied to in a text file it creates/finds
 def get_saved_posts():
 	if not os.path.isfile("posts_replied_to.txt"):
 		posts_replied_to = []
@@ -154,7 +162,7 @@ def get_saved_posts():
 			posts_replied_to = list(filter(None, posts_replied_to))
 	return posts_replied_to
 
-def get_saved_comments():
+#logs comments that have already been replied to in a text file it creates/findsdef get_saved_comments():
 	if not os.path.isfile("comments_replied_to.txt"):
 		comments_replied_to = []
 	else:
@@ -168,6 +176,7 @@ r = bot_login()
 posts_replied_to = get_saved_posts()
 comments_replied_to = get_saved_comments()
 
+#bot will run while true and sleep for a time specified in the config file
 while True:
 	post_scan(r,posts_replied_to)
 	comment_scan(r,comments_replied_to)
