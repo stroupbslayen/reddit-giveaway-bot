@@ -1,142 +1,159 @@
-import praw
-import config
 import os
-import random
-import sys
+import praw
 import time
+import config
+import random
 
-count_up=0
-prize_is_list=0
-count_down=0
-comment_id=0				#comment id
-prizes = 0					#number of prizes
-post_creator = 0			#post creator id number
-comment_creator = 0 		#comment creator id
-keyword = 0					#keyword to look for
-post_id = 0					#reddit post id number
-values = []					#splits comment into a list, should be in certain order to use correctly
-entries = []				#entry list
-winners = []				#winners list
-total_entered = []			# list of people who have entered
+class console:
+	notop = "Not the OP\n"
+	wformat = "Wrong format\n"
+	notenough = "not enough people in drawing\n"
+	error = "There was an error\n"
 
 
-#logs into reddit with provided user account info
+class res:
+	notop = "You are not the OP for the linked post."+config.help_message
+	wformat = "Incorrect format, please make sure you're using the correct input."+ config.help_message
+	notenough = "Not enough people in drawing at this time. Leave another comment later."
+	error = "I ran into a problem getting results for this drawing. Please make sure the format is correct."+config.help_message
+
 def bot_login():
-	print("Logging in...")
-	r = praw.Reddit(username = config.username,		# username from config.py
-					password = config.password,					# password form config.py
-					client_id = config.client_id,						# client_id from config.py
-					client_secret = config.client_secret,			# client secret from config.py
-					user_agent = config.user_agent )			# user agent from config.py
+	print("\nPosts Logging in...")
+	r = praw.Reddit(username = config.username,     # username from config.py
+					password = config.password,                 # password form config.py
+					client_id = config.client_id,                       # client_id from config.py
+					client_secret = config.client_secret,           # client secret from config.py
+					user_agent = config.user_agent )            # user agent from config.py
 	print("Logged in... \n")
 	return r
 
-def scan_sub(r,comments_replied_to):
-	print ("Getting "+str(config.comments_to_search)+ " comments...")
+def post_scan(r,posts_replied_to):
+	print("Getting "+str(config.posts_to_search)+" posts\n")
+	for submission in r.subreddit(config.sreddit).new(limit=config.posts_to_search):
+			if config.botname in submission.selftext and submission.id not in posts_replied_to and submission.author.name != r.user.me():
+				try:
+					post_id = submission.id
+					posts_replied_to.append(post_id)
+					with open("posts_replied_to.txt","a") as f:
+						f.write(post_id+"\n")
+					response = None
+					print("Called by post: "+post_id)
+					while response == None:
+						values = submission.selftext.split()
+						if config.botname == values[0]:
+							post_url,prizes,keyword = get_param(values)
+
+							if submission.author.id == r.submission(url=post_url).author.id:
+								entries = get_entries(post_url,keyword)
+								total_entered = len(entries)
+								if total_entered < prizes:
+									console_response = console.notenough
+									response = res.notenough
+								winners = get_winners(entries,prizes)
+								response = reply_comment(total_entered,winners)
+								console_response = str(total_entered)+" entered "+str(prizes)+" picked\n"
+							else:
+								console_response = console.notop
+								response = res.notop
+						else:
+							console_response = console.wformat
+							response = res.wformat
+				except:
+					console_response= console.error
+					response=res.error
+				print(console_response)
+				r.submission(id=post_id).reply(response)
+
+def comment_scan(r,comments_replied_to):
+	print("Getting "+str(config.comments_to_search)+" comments\n")
 	for comment in r.subreddit(config.sreddit).comments(limit=config.comments_to_search):
-		if config.botname in comment.body and comment.id not in comments_replied_to and comment.author != r.user.me():
 
-			comment_id = comment.id
+			if config.botname in comment.body and comment.id not in comments_replied_to and comment.author.name != r.user.me():
+				try:
+					comment_id = comment.id
+					comments_replied_to.append(comment_id)
+					with open("comments_replied_to.txt","a") as f:
+						f.write(comment_id+"\n")
+					response = None
+					print("Called by comment: "+comment_id)
+					while response == None:
+						values = comment.body.split()
+						if config.botname == values[0]:
+							post_url,prizes,keyword = get_param(values)
 
-			comments_replied_to.append(comment.id)
-			with open ("comments_replied_to.txt", "a") as f:
-				f.write(comment.id + "\n")
+							if comment.author.id == r.submission(url=post_url).author.id:
+								entries = get_entries(post_url,keyword)
+								total_entered = len(entries)
+								if total_entered < prizes:
+									console_response = console.notenough
+									response = res.notenough
+								winners = get_winners(entries,prizes)
+								response = reply_comment(total_entered,winners)
+								console_response = str(total_entered)+" entered "+str(prizes)+" picked\n"
+							else:
+								console_response = console.notop
+								response = res.notop
+						else:
+							console_response = console.wformat
+							response = res.wformat
+				except:
+					console_response= console.error
+					response=res.error
+				print(console_response)
+				r.comment(id=comment_id).reply(response)
 
-			print("Someone called for me!")
-			post_creator = comment.submission.author.id
-			comment_creator = comment.author.id
-			post_id = comment.submission.id
-			post = r.submission(id=post_id)
+def get_param(values):
+	if len(values)<4:
+		values.append("")
+	post_url = values[1]
+	prizes = int(values[2])
+	keyword = values[3]
 
-			if post_creator == comment_creator:
-				print("I was called by the OP")
-				post = r.submission(id=post_id)
+	return post_url,prizes,keyword
 
-				values = comment.body.split()
-				if values[0]!= config.botname:
-					return
-				if len(values) < 3:
-					values.append("")
-					# print(values)
-
-				prizes, keyword,count_down = set_param(values)
-
-				# print("Commentor: " + comment_creator)
-				# print("OP: " + post_creator)
-				# print("# of Prizes: " + str(prizes))
-				# print("Keyword: " + str(keyword))
-
-				entries,total_entered,reply,console_response = get_entries(keyword,post,post_creator,prizes)
-				if reply == 0:
-					winners = get_winners(count_down,entries)
-					edit_post(r,count_up,total_entered,winners,comment_id)
-				else:
-					print(console_response)
-					r.comment(id=comment_id).reply(reply)
-					return
-
-			else:
-					print("I was not called by the OP")
-	print("Sleeping for " + str(config.sleep_timer) + " seconds...")
-	time.sleep(config.sleep_timer)
-
-# sets the values from the message to their variables
-def set_param(values):
-	prizes = int(values[1])
-	keyword = values[2]
-	count_down = int(prizes)
-	return prizes,keyword,count_down
-
-# Searches the entire post for people who have commented or used the provided keyword
-def get_entries(keyword,post,post_creator,prizes):
-
-	post.comments.replace_more(limit=0)
+def get_entries(post_url,keyword):
+	entries = []
+	post = r.submission(url=post_url)
+	post.comments.replace_more(limit=None)
+	print("getting entries...")
 	for comment in post.comments.list():
-		if keyword in comment.body and comment.author.name not in entries and comment.author.id != post_creator and comment.author.id != r.user.me():
+		if keyword in comment.body and comment not in entries and comment.author != post.author:
 			entries.append(comment.author.name)
-			total_entered.append(comment.author.name)
+	return entries
 
-	#if the keyword is not found then the bot will reply witht he below message
-	if len(total_entered) == 0:
-		response = "Keyword not found in comments, reply sent"
-		reply = "Keyword '" + keyword + "' was not found. Please check you entered it correctly and comment again." + config.im_a_bot
-
-	#if there are more prizes than entries then the bot will reply to the comment with the below message
-	if len(total_entered) < prizes:
-		console_response = "Not enough people in drawing, reply sent"
-		reply = "Not enough people have entered the drawing :( \n\n Wait a little while and call me again." + config.im_a_bot
-	else:
-		console_response = None
-		reply = 0
-	return entries,total_entered,reply,console_response
-
-# Randomly picks a name from total_entered and removes it to avoid duplicate pulls
-def get_winners(count_down,entries):
-
+def get_winners(entries,prizes):
+	count_down = prizes
+	winners = []
 	for count_down in range(count_down,0,-1):
 			picked = random.choice(entries)
 			winners.append(picked)
 			entries.remove(picked)
 	return winners
 
-
-# Will respond to the comment with the amount of people who entered and the winners of the giveaway
-def edit_post(r,count_up,total_entered,winners,comment_id):
+def reply_comment(total_entered,winners):
+	count_up = 0
 	add_winners = ""
 	number_of_winners = len(winners)-1
-	total_entered = str(len(total_entered))
+	total_entered = str(total_entered)
 	for number_of_winners  in range (number_of_winners,-1,-1):
-		if prize_is_list == 1:
-			what_prize = " won " + prizes[count_up]
-		else:
-			what_prize = ""
-		add_winners = add_winners + "\n\n /u/" + winners[number_of_winners] +  what_prize
+
+		what_prize = ""
+		add_winners = add_winners + "\n\n" + winners[number_of_winners] +  what_prize
 		count_up +=1
-	update =  total_entered+ " redditor(s) entered in this drawing \n\n The winner(s):" + add_winners + config.im_a_bot
-	#print(update) #uncomment to test in the console
-	r.comment(id=comment_id).reply(update)
+	response =  total_entered+ " redditor(s) entered in this drawing \n\n The winner(s):" + add_winners
+	return response
 
 #logs comments that have already been replied to in a text file it creates/finds
+def get_saved_posts():
+	if not os.path.isfile("posts_replied_to.txt"):
+		posts_replied_to = []
+	else:
+		with open("posts_replied_to.txt", "r") as f:
+			posts_replied_to = f.read()
+			posts_replied_to = posts_replied_to.split("\n")
+			posts_replied_to = list(filter(None, posts_replied_to))
+	return posts_replied_to
+
 def get_saved_comments():
 	if not os.path.isfile("comments_replied_to.txt"):
 		comments_replied_to = []
@@ -148,6 +165,11 @@ def get_saved_comments():
 	return comments_replied_to
 
 r = bot_login()
+posts_replied_to = get_saved_posts()
 comments_replied_to = get_saved_comments()
+
 while True:
-	scan_sub(r, comments_replied_to)
+	post_scan(r,posts_replied_to)
+	comment_scan(r,comments_replied_to)
+	print("No posts or comments found.\nSleeping for "+str(config.sleep_timer)+" seconds... \n")
+	time.sleep(config.sleep_timer)
